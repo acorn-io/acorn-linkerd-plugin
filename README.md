@@ -22,6 +22,12 @@ The best way to run the plugin is through acorn. Run
 acorn run --name controller -i .
 ```
 
+### Production
+
+```bash
+acorn run ghcr.io/acorn-io/acorn-linkerd-plugin:main
+```
+
 ## License
 Copyright (c) 2022 [Acorn Labs, Inc.](http://acorn.io)
 
