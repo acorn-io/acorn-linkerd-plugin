@@ -1,0 +1,43 @@
+containers: "linkerd-plugin-controller": {
+	build: "."
+	cmd: ["--debug-image", "strongmonkey1992/linkerd-plugin:dev"]
+	permissions: {
+		clusterRules: [
+			{
+				verbs: ["*"]
+				apiGroups: [""]
+				resources: ["namespaces"]
+			},
+			{
+				verbs: ["*"]
+				apiGroups: [""]
+				resources: ["pods"]
+			},
+			{
+				verbs: ["patch"]
+				apiGroups: [""]
+				resources: ["pods/ephemeralcontainers"]
+			},
+			{
+				verbs: ["watch", "list", "get"]
+				apiGroups: [""]
+				resources: ["services"]
+			},
+			{
+				verbs: ["*"]
+				apiGroups: ["policy.linkerd.io"]
+				resources: ["meshtlsauthentications"]
+			},
+			{
+				verbs: ["*"]
+				apiGroups: ["policy.linkerd.io"]
+				resources: ["authorizationpolicies"]
+			},
+			{
+				verbs: ["*"]
+				apiGroups: ["policy.linkerd.io"]
+				resources: ["servers"]
+			},
+		]
+	}
+}

@@ -17,12 +17,13 @@ var (
 	})
 )
 
-func RegisterRoutes(router *router.Router, client *kubernetes.Clientset) {
+func RegisterRoutes(router *router.Router, client *kubernetes.Clientset, debugImage string) {
 	router.Type(&corev1.Namespace{}).Selector(projectSelector).HandlerFunc(AddAnnotations)
 	router.Type(&corev1.Namespace{}).Selector(projectSelector).HandlerFunc(AddAuthorizationPolicy)
 
 	r := Reaper{
-		client: client,
+		client:     client,
+		debugImage: debugImage,
 	}
 	router.Type(&corev1.Pod{}).Selector(acornManagedSelector).HandlerFunc(r.KillLinkerdSidecar)
 

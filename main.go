@@ -5,13 +5,19 @@ import (
 	"fmt"
 
 	"github.com/acorn-io/acorn-linkerd-plugin/pkg/controller"
+	"github.com/acorn-io/acorn-linkerd-plugin/pkg/scheme"
 	"github.com/acorn-io/acorn-linkerd-plugin/pkg/version"
+	"github.com/acorn-io/baaah/pkg/restconfig"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
 var (
 	versionFlag = flag.Bool("version", false, "print version")
+
+	debugImageFlag = flag.String("debug-image", "ghcr.io/acorn/linkerd-plugin:main", "the image to use for killing linkerd sidecar")
 )
 
 func main() {
@@ -22,9 +28,23 @@ func main() {
 		return
 	}
 
+	logrus.Infof("Using debug image %s", *debugImageFlag)
+
+	config, err := restconfig.Default()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	config.APIPath = "api"
+	config.GroupVersion = &corev1.SchemeGroupVersion
+	config.NegotiatedSerializer = scheme.Codecs
+
+	clientset := kubernetes.NewForConfigOrDie(config)
+
 	ctx := signals.SetupSignalHandler()
-	logrus.SetLevel(logrus.DebugLevel)
-	if err := controller.Start(ctx); err != nil {
+	if err := controller.Start(ctx, controller.Options{
+		Clientset:  clientset,
+		DebugImage: *debugImageFlag,
+	}); err != nil {
 		logrus.Fatal(err)
 	}
 	<-ctx.Done()

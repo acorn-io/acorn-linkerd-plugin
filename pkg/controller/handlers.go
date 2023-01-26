@@ -41,7 +41,8 @@ func AddAnnotations(req router.Request, resp router.Response) error {
 }
 
 type Reaper struct {
-	client *kubernetes.Clientset
+	client     *kubernetes.Clientset
+	debugImage string
 }
 
 // KillLinkerdSidecar finds all the pods that belongs to acorn jobs but stuck at completing because of linkerd sidecar. It launches ephemeral container to kill sidecar
@@ -80,7 +81,7 @@ func (r Reaper) KillLinkerdSidecar(req router.Request, resp router.Response) err
 		TargetContainerName: proxySidecarContainerName,
 		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
 			Name:  "shutdown-sidecar",
-			Image: "strongmonkey1992/linkerd-plugin:dev",
+			Image: r.debugImage,
 			Command: []string{
 				"curl",
 				"-X",

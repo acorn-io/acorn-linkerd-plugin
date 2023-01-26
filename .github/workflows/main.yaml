@@ -1,0 +1,21 @@
+name: Main
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    runs-on: buildjet-4vcpu-ubuntu-2004
+    steps:
+      - uses: actions/checkout@v3
+      - uses: acorn-io/actions-setup@v1
+      - uses: acorn-io/actions-login@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and Push
+        run: |
+          TAG=main
+          acorn build --push -t ghcr.io/${{ github.repository }}:$TAG .
