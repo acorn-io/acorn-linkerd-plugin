@@ -1,6 +1,5 @@
 containers: "linkerd-plugin-controller": {
 	build: "."
-	cmd: ["--debug-image", "strongmonkey1992/linkerd-plugin:dev"]
 	permissions: {
 		clusterRules: [
 			{

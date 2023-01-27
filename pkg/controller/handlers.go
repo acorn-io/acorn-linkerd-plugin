@@ -9,10 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -26,6 +23,12 @@ const (
 	proxySidecarContainerName = "linkerd-proxy"
 )
 
+type Handler struct {
+	client        kubernetes.Interface
+	debugImage    string
+	clusterDomain string
+}
+
 // AddAnnotations adds linkerd annotations to all acorn projects so that it can propagate into app namespaces
 func AddAnnotations(req router.Request, resp router.Response) error {
 	projectNamespace := req.Object.(*corev1.Namespace)
@@ -33,6 +36,12 @@ func AddAnnotations(req router.Request, resp router.Response) error {
 	if projectNamespace.Annotations == nil {
 		projectNamespace.Annotations = map[string]string{}
 	}
+
+	if projectNamespace.Annotations[serviceMeshAnnotation] == "enabled" {
+		return nil
+	}
+
+	logrus.Infof("Updating project %v to inject linkerd service mesh annotation", projectNamespace.Name)
 	projectNamespace.Annotations[serviceMeshAnnotation] = "enabled"
 	if err := req.Client.Update(req.Ctx, projectNamespace); err != nil {
 		return err
@@ -40,13 +49,8 @@ func AddAnnotations(req router.Request, resp router.Response) error {
 	return nil
 }
 
-type Reaper struct {
-	client     *kubernetes.Clientset
-	debugImage string
-}
-
 // KillLinkerdSidecar finds all the pods that belongs to acorn jobs but stuck at completing because of linkerd sidecar. It launches ephemeral container to kill sidecar
-func (r Reaper) KillLinkerdSidecar(req router.Request, resp router.Response) error {
+func (h Handler) KillLinkerdSidecar(req router.Request, resp router.Response) error {
 	pod := req.Object.(*corev1.Pod)
 
 	// we want to ignore all the pods that doesn't belong to acorn jobs
@@ -76,12 +80,11 @@ func (r Reaper) KillLinkerdSidecar(req router.Request, resp router.Response) err
 	}
 
 	logrus.Infof("Launching ephemeral container to kill pod %v/%v sidecar", pod.Namespace, pod.Name)
-	debugPod := pod.DeepCopy()
-	debugPod.Spec.EphemeralContainers = append(debugPod.Spec.EphemeralContainers, corev1.EphemeralContainer{
+	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, corev1.EphemeralContainer{
 		TargetContainerName: proxySidecarContainerName,
 		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
 			Name:  "shutdown-sidecar",
-			Image: r.debugImage,
+			Image: h.debugImage,
 			Command: []string{
 				"curl",
 				"-X",
@@ -90,24 +93,8 @@ func (r Reaper) KillLinkerdSidecar(req router.Request, resp router.Response) err
 			},
 		},
 	})
-
-	podJS, err := json.Marshal(pod)
+	pod, err := h.client.CoreV1().Pods(pod.Namespace).UpdateEphemeralContainers(req.Ctx, pod.Name, pod, metav1.UpdateOptions{})
 	if err != nil {
-		return fmt.Errorf("error creating JSON for pod: %v", err)
-	}
-
-	debugPodJS, err := json.Marshal(debugPod)
-	if err != nil {
-		return fmt.Errorf("error creating JSON for debug pod: %v", err)
-	}
-
-	patch, err := strategicpatch.CreateTwoWayMergePatch(podJS, debugPodJS, pod)
-	if err != nil {
-		return fmt.Errorf("error creating patch to add debug container: %v", err)
-	}
-
-	// Right now all the containers except sidecar have exited, launch ephemeral container to kill sidecar
-	if _, err := r.client.CoreV1().Pods(pod.Namespace).Patch(req.Ctx, pod.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{}, "ephemeralcontainers"); err != nil {
 		return err
 	}
 
@@ -123,13 +110,12 @@ func AddLinkerdServer(req router.Request, resp router.Response) error {
 		resp.Objects(&serverv1beta1.Server{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: service.Namespace,
-				Name:      fmt.Sprintf("%v-%v", service.Name, port.Port),
+				// We always program service port name in acorn
+				Name: fmt.Sprintf("%v-%v", service.Name, port.Name),
 			},
 			Spec: serverv1beta1.ServerSpec{
-				PodSelector:   metav1.SetAsLabelSelector(service.Spec.Selector),
-				Port:          intstr.FromInt(int(port.Port)),
-				ProxyProtocol: "HTTP/1",
-				// Todo: Do we need to program protocol
+				PodSelector: metav1.SetAsLabelSelector(service.Spec.Selector),
+				Port:        intstr.FromInt(int(port.Port)),
 			},
 		})
 	}
@@ -141,7 +127,7 @@ AddAuthorizationPolicy makes sure within each acorn project, apps can talk to ea
 1. Programs MeshTLSAuthentication for each app namespaces to represent all the service account identities in the same project
 2. For each server, create an AuthorizationPolicy per project to allow network access.
 */
-func AddAuthorizationPolicy(req router.Request, resp router.Response) error {
+func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response) error {
 	projectNamespace := req.Object.(*corev1.Namespace)
 
 	var appNamespaces corev1.NamespaceList
@@ -156,7 +142,7 @@ func AddAuthorizationPolicy(req router.Request, resp router.Response) error {
 	// First, we create a MeshTLSAuthentication representing all the service accounts in the current project
 	var serviceaccountsIdentities []string
 	for _, appNamespace := range appNamespaces.Items {
-		serviceaccountsIdentities = append(serviceaccountsIdentities, fmt.Sprintf("*.%s.serviceaccount.identity.linkerd.cluster.local", appNamespace.Name))
+		serviceaccountsIdentities = append(serviceaccountsIdentities, fmt.Sprintf("*.%s.serviceaccount.identity.linkerd.%v", appNamespace.Name, h.clusterDomain))
 	}
 	resp.Objects(&policyv1alpha1.MeshTLSAuthentication{
 		ObjectMeta: metav1.ObjectMeta{

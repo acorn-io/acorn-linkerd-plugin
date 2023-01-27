@@ -17,7 +17,9 @@ import (
 var (
 	versionFlag = flag.Bool("version", false, "print version")
 
-	debugImageFlag = flag.String("debug-image", "ghcr.io/acorn/linkerd-plugin:main", "the image to use for killing linkerd sidecar")
+	debugImageFlag = flag.String("debug-image", "ghcr.io/acorn/acorn-linkerd-plugin:main", "the image to use for killing linkerd sidecar")
+
+	clusterDomain = flag.String("cluster-domain", "cluster.local", "The cluster domain that is configured on linkerd")
 )
 
 func main() {
@@ -29,6 +31,7 @@ func main() {
 	}
 
 	logrus.Infof("Using debug image %s", *debugImageFlag)
+	logrus.Infof("Using cluster domain %s", *clusterDomain)
 
 	config, err := restconfig.Default()
 	if err != nil {
@@ -38,12 +41,13 @@ func main() {
 	config.GroupVersion = &corev1.SchemeGroupVersion
 	config.NegotiatedSerializer = scheme.Codecs
 
-	clientset := kubernetes.NewForConfigOrDie(config)
+	k8s := kubernetes.NewForConfigOrDie(config)
 
 	ctx := signals.SetupSignalHandler()
 	if err := controller.Start(ctx, controller.Options{
-		Clientset:  clientset,
-		DebugImage: *debugImageFlag,
+		K8s:           k8s,
+		DebugImage:    *debugImageFlag,
+		ClusterDomain: *clusterDomain,
 	}); err != nil {
 		logrus.Fatal(err)
 	}

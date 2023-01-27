@@ -9,9 +9,10 @@ import (
 )
 
 type Options struct {
-	Clientset *kubernetes.Clientset
+	K8s kubernetes.Interface
 
-	DebugImage string
+	DebugImage    string
+	ClusterDomain string
 }
 
 func Start(ctx context.Context, opt Options) error {
@@ -20,7 +21,7 @@ func Start(ctx context.Context, opt Options) error {
 		return err
 	}
 
-	RegisterRoutes(router, opt.Clientset, opt.DebugImage)
+	RegisterRoutes(router, opt.K8s, opt.DebugImage, opt.ClusterDomain)
 
 	return router.Start(ctx)
 }
