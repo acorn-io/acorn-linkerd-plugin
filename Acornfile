@@ -13,7 +13,7 @@ containers: "linkerd-plugin-controller": {
 				resources: ["pods"]
 			},
 			{
-				verbs: ["patch"]
+				verbs: ["patch", "update"]
 				apiGroups: [""]
 				resources: ["pods/ephemeralcontainers"]
 			},
