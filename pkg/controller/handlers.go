@@ -93,8 +93,7 @@ func (h Handler) KillLinkerdSidecar(req router.Request, resp router.Response) er
 			},
 		},
 	})
-	pod, err := h.client.CoreV1().Pods(pod.Namespace).UpdateEphemeralContainers(req.Ctx, pod.Name, pod, metav1.UpdateOptions{})
-	if err != nil {
+	if _, err := h.client.CoreV1().Pods(pod.Namespace).UpdateEphemeralContainers(req.Ctx, pod.Name, pod, metav1.UpdateOptions{}); err != nil {
 		return err
 	}
 

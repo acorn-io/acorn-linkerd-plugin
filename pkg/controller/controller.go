@@ -21,7 +21,9 @@ func Start(ctx context.Context, opt Options) error {
 		return err
 	}
 
-	RegisterRoutes(router, opt.K8s, opt.DebugImage, opt.ClusterDomain)
+	if err := RegisterRoutes(router, opt.K8s, opt.DebugImage, opt.ClusterDomain); err != nil {
+		return err
+	}
 
 	return router.Start(ctx)
 }
