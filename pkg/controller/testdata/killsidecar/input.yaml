@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    acorn.io/job-name: "foo"
+  name: test
+  namespace: test
+status:
+  containerStatuses:
+    - name: foo
+      state:
+        terminated:
+          exitCode: 0
+    - name: linkerd-proxy
+      state:
+        running:
+          startedAt: "2023-01-25T18:56:14Z"

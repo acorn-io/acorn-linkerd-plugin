@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    acorn.io/app-name: green-sunset
+    acorn.io/app-namespace: acorn
+    acorn.io/managed: "true"
+  name: foo1
+spec:
+  finalizers:
+    - kubernetes
+status:
+  phase: Active
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    acorn.io/app-name: green-sunset
+    acorn.io/app-namespace: acorn
+    acorn.io/managed: "true"
+  name: foo2
+spec:
+  finalizers:
+    - kubernetes
+status:
+  phase: Active
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: foo-80
+  namespace: foo1
+spec:
+  podSelector:
+    matchLabels:
+      acorn.io/app-name: bitter-smoke
+      acorn.io/app-namespace: acorn
+      acorn.io/managed: "true"
+  port: 80
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: bar-80
+  namespace: foo2
+spec:
+  podSelector:
+    matchLabels:
+      acorn.io/app-name: bitter-smoke
+      acorn.io/app-namespace: acorn
+      acorn.io/managed: "true"
+  port: 80

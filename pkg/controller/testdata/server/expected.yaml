@@ -1,0 +1,12 @@
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: foo-80
+  namespace: test
+spec:
+  podSelector:
+    matchLabels:
+      acorn.io/app-name: bitter-smoke
+      acorn.io/app-namespace: acorn
+      acorn.io/managed: "true"
+  port: 80

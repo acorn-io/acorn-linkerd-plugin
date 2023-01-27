@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: foo
+  namespace: test
+spec:
+  ports:
+    - appProtocol: HTTP
+      name: "80"
+      port: 80
+      protocol: TCP
+      targetPort: 80
+  selector:
+    acorn.io/app-name: bitter-smoke
+    acorn.io/app-namespace: acorn
+    acorn.io/managed: "true"
+  sessionAffinity: None
+  type: ClusterIP
