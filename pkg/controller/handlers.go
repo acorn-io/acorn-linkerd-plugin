@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/acorn-io/baaah/pkg/name"
 	"github.com/acorn-io/baaah/pkg/router"
@@ -140,9 +141,17 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 
 	// First, we create a MeshTLSAuthentication representing all the service accounts in the current project
 	var serviceaccountsIdentities []string
+	sort.SliceStable(appNamespaces.Items, func(i, j int) bool {
+		return appNamespaces.Items[i].Name < appNamespaces.Items[j].Name
+	})
 	for _, appNamespace := range appNamespaces.Items {
 		serviceaccountsIdentities = append(serviceaccountsIdentities, fmt.Sprintf("*.%s.serviceaccount.identity.linkerd.%v", appNamespace.Name, h.clusterDomain))
 	}
+
+	if len(serviceaccountsIdentities) == 0 {
+		return nil
+	}
+
 	resp.Objects(&policyv1alpha1.MeshTLSAuthentication{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: projectNamespace.Name,

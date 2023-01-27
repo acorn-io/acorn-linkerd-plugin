@@ -68,3 +68,10 @@ func TestHandler_AddAuthorizationPolicy(t *testing.T) {
 	}
 	tester.DefaultTest(t, scheme.Scheme, "testdata/authorization-policy", h.AddAuthorizationPolicy)
 }
+
+func TestHandler_NoAppNamespace(t *testing.T) {
+	h := Handler{
+		clusterDomain: "cluster.local",
+	}
+	tester.DefaultTest(t, scheme.Scheme, "testdata/no-app-namespace", h.AddAuthorizationPolicy)
+}
