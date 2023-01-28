@@ -4,7 +4,7 @@ WORKDIR /src
 RUN --mount=type=cache,target=/go/pkg --mount=type=cache,target=/root/.cache/go-build make build
 
 FROM alpine:3.16 AS base
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates curl
 RUN adduser -D acorn
 USER acorn
 ENTRYPOINT ["/usr/local/bin/linkerd-plugin"]
