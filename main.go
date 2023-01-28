@@ -17,7 +17,7 @@ import (
 var (
 	versionFlag = flag.Bool("version", false, "print version")
 
-	debugImageFlag = flag.String("debug-image", "ghcr.io/acorn/acorn-linkerd-plugin:main", "the image to use for killing linkerd sidecar")
+	debugImageFlag = flag.String("debug-image", "ghcr.io/acorn-io/acorn-linkerd-plugin:main", "the image to use for killing linkerd sidecar")
 
 	clusterDomain = flag.String("cluster-domain", "cluster.local", "The cluster domain that is configured on linkerd")
 )
