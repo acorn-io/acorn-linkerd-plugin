@@ -20,6 +20,10 @@ var (
 	debugImageFlag = flag.String("debug-image", "ghcr.io/acorn-io/acorn-linkerd-plugin:main", "the image to use for killing linkerd sidecar")
 
 	clusterDomain = flag.String("cluster-domain", "cluster.local", "The cluster domain that is configured on linkerd")
+
+	ingressEndpointName = flag.String("ingress-endpoint-name", "traefik", "The name of the ingress pod endpoint. Used to create policy that allows traffic from ingress to apps")
+
+	ingressEndpointNamespace = flag.String("ingress-endpoint-namespace", "traefik", "The namespace of the ingress pod endpoint. Used to create policy that allows traffic from ingress to apps")
 )
 
 func main() {
@@ -48,6 +52,9 @@ func main() {
 		K8s:           k8s,
 		DebugImage:    *debugImageFlag,
 		ClusterDomain: *clusterDomain,
+
+		IngressEndpointName:      *ingressEndpointName,
+		IngressEndpointNamespace: *ingressEndpointNamespace,
 	}); err != nil {
 		logrus.Fatal(err)
 	}

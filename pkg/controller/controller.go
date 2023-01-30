@@ -13,6 +13,9 @@ type Options struct {
 
 	DebugImage    string
 	ClusterDomain string
+
+	IngressEndpointName      string
+	IngressEndpointNamespace string
 }
 
 func Start(ctx context.Context, opt Options) error {
@@ -21,7 +24,7 @@ func Start(ctx context.Context, opt Options) error {
 		return err
 	}
 
-	if err := RegisterRoutes(router, opt.K8s, opt.DebugImage, opt.ClusterDomain); err != nil {
+	if err := RegisterRoutes(router, opt.K8s, opt.DebugImage, opt.ClusterDomain, opt.IngressEndpointName, opt.IngressEndpointNamespace); err != nil {
 		return err
 	}
 

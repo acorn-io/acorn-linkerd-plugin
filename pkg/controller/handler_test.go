@@ -45,8 +45,9 @@ func TestHandler_KillLinkerdSidecar(t *testing.T) {
 	expected := corev1.EphemeralContainer{
 		TargetContainerName: proxySidecarContainerName,
 		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
-			Name:  "shutdown-sidecar",
-			Image: "foo",
+			Name:            "shutdown-sidecar",
+			Image:           "foo",
+			ImagePullPolicy: corev1.PullAlways,
 			Command: []string{
 				"curl",
 				"-X",
@@ -69,9 +70,22 @@ func TestHandler_AddAuthorizationPolicy(t *testing.T) {
 	tester.DefaultTest(t, scheme.Scheme, "testdata/authorization-policy", h.AddAuthorizationPolicy)
 }
 
+func TestHandler_AddAuthorizationPolicy_Ingress(t *testing.T) {
+	h := Handler{
+		clusterDomain:            "cluster.local",
+		ingressEndpointNamespace: "kube-system",
+	}
+	tester.DefaultTest(t, scheme.Scheme, "testdata/authorization-policy-with-ingress", h.AddAuthorizationPolicy)
+}
+
 func TestHandler_NoAppNamespace(t *testing.T) {
 	h := Handler{
 		clusterDomain: "cluster.local",
 	}
 	tester.DefaultTest(t, scheme.Scheme, "testdata/no-app-namespace", h.AddAuthorizationPolicy)
+}
+
+func TestHandler_ConfigureNetworkAuthorizationForIngress(t *testing.T) {
+	h := Handler{}
+	tester.DefaultTest(t, scheme.Scheme, "testdata/network-authentication", h.ConfigureNetworkAuthorizationForIngress)
 }

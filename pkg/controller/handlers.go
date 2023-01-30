@@ -8,6 +8,7 @@ import (
 	"github.com/acorn-io/baaah/pkg/router"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -22,12 +23,17 @@ import (
 const (
 	serviceMeshAnnotation     = "linkerd.io/inject"
 	proxySidecarContainerName = "linkerd-proxy"
+
+	ingressNetworkAuthenticationName = "acorn-ingress-network-authentication"
+	serviceNameLabel                 = "acorn.io/service-name"
 )
 
 type Handler struct {
-	client        kubernetes.Interface
-	debugImage    string
-	clusterDomain string
+	client                   kubernetes.Interface
+	debugImage               string
+	clusterDomain            string
+	ingressEndpointName      string
+	ingressEndpointNamespace string
 }
 
 // AddAnnotations adds linkerd annotations to all acorn projects so that it can propagate into app namespaces
@@ -84,8 +90,9 @@ func (h Handler) KillLinkerdSidecar(req router.Request, resp router.Response) er
 	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, corev1.EphemeralContainer{
 		TargetContainerName: proxySidecarContainerName,
 		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
-			Name:  "shutdown-sidecar",
-			Image: h.debugImage,
+			Name:            "shutdown-sidecar",
+			Image:           h.debugImage,
+			ImagePullPolicy: corev1.PullAlways,
 			Command: []string{
 				"curl",
 				"-X",
@@ -106,12 +113,19 @@ func (h Handler) KillLinkerdSidecar(req router.Request, resp router.Response) er
 func AddLinkerdServer(req router.Request, resp router.Response) error {
 	service := req.Object.(*corev1.Service)
 
+	if service.Spec.Selector == nil {
+		return nil
+	}
+
 	for _, port := range service.Spec.Ports {
 		resp.Objects(&serverv1beta1.Server{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: service.Namespace,
 				// We always program service port name in acorn
 				Name: fmt.Sprintf("%v-%v", service.Name, port.Name),
+				Labels: map[string]string{
+					serviceNameLabel: service.Name,
+				},
 			},
 			Spec: serverv1beta1.ServerSpec{
 				PodSelector: metav1.SetAsLabelSelector(service.Spec.Selector),
@@ -175,6 +189,8 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 		servers.Items = append(servers.Items, result.Items...)
 	}
 	project := gatewayapiv1alpha2.Namespace(projectNamespace.Name)
+	ingressNamespace := gatewayapiv1alpha2.Namespace(h.ingressEndpointNamespace)
+
 	for _, server := range servers.Items {
 		resp.Objects(&policyv1alpha1.AuthorizationPolicy{
 			ObjectMeta: metav1.ObjectMeta{
@@ -197,7 +213,74 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 				},
 			},
 		})
+
+		// Check if service is referenced by an ingress, and if so, create an authorization policy that
+		// allow traffic from ingress pod
+		var ingressList networkingv1.IngressList
+		if err := req.Client.List(req.Ctx, &ingressList, &client.ListOptions{
+			Namespace: server.Namespace,
+			LabelSelector: labels.SelectorFromSet(map[string]string{
+				serviceNameLabel: server.Labels[serviceNameLabel],
+			}),
+		}); err != nil {
+			return err
+		}
+
+		if len(ingressList.Items) == 0 {
+			continue
+		}
+
+		resp.Objects(&policyv1alpha1.AuthorizationPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: server.Namespace,
+				Name:      name.SafeConcatName("authz-profile-ingress", server.Name),
+			},
+			Spec: policyv1alpha1.AuthorizationPolicySpec{
+				TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+					Group: gatewayapiv1alpha2.Group(policyv1alpha1.SchemeGroupVersion.Group),
+					Kind:  "Server",
+					Name:  gatewayapiv1alpha2.ObjectName(server.Name),
+				},
+				RequiredAuthenticationRefs: []gatewayapiv1alpha2.PolicyTargetReference{
+					{
+						Group:     gatewayapiv1alpha2.Group(policyv1alpha1.SchemeGroupVersion.Group),
+						Kind:      "NetworkAuthentication",
+						Name:      ingressNetworkAuthenticationName,
+						Namespace: &ingressNamespace,
+					},
+				},
+			},
+		})
 	}
+
+	return nil
+}
+
+// ConfigureNetworkAuthorizationForIngress configures the authorization policy so that
+// Ingress pod is able to reach acorn apps. This should normally be done through service
+// account identity but not sure why it is not working.
+// TODO: need to figure out how service account works when ingress mode is enabled
+func (h Handler) ConfigureNetworkAuthorizationForIngress(req router.Request, resp router.Response) error {
+	ingressEndpoint := req.Object.(*corev1.Endpoints)
+
+	var networks []*policyv1alpha1.Network
+	for _, subnet := range ingressEndpoint.Subsets {
+		for _, address := range subnet.Addresses {
+			networks = append(networks, &policyv1alpha1.Network{
+				Cidr: address.IP,
+			})
+		}
+	}
+
+	resp.Objects(&policyv1alpha1.NetworkAuthentication{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ingressEndpoint.Namespace,
+			Name:      ingressNetworkAuthenticationName,
+		},
+		Spec: policyv1alpha1.NetworkAuthenticationSpec{
+			Networks: networks,
+		},
+	})
 
 	return nil
 }
