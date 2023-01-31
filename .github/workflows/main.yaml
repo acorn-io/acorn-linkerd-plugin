@@ -18,5 +18,4 @@ jobs:
       - name: Build and Push
         run: |
           TAG=main
-          acorn login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
-          acorn build --push -p linux/amd64,linux/arm64 -t ghcr.io/${{ github.repository }}:$TAG .
+          acorn build --push -t ghcr.io/${{ github.repository }}:$TAG .

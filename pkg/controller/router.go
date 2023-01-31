@@ -22,11 +22,13 @@ var (
 	jobLabel          = "acorn.io/job-name"
 )
 
-func RegisterRoutes(router *router.Router, client kubernetes.Interface, debugImage string, clusterDomain string) error {
+func RegisterRoutes(router *router.Router, client kubernetes.Interface, debugImage, clusterDomain, ingressEndpointName, ingressEndpointNamespace string) error {
 	h := Handler{
-		client:        client,
-		debugImage:    debugImage,
-		clusterDomain: clusterDomain,
+		client:                   client,
+		debugImage:               debugImage,
+		clusterDomain:            clusterDomain,
+		ingressEndpointName:      ingressEndpointName,
+		ingressEndpointNamespace: ingressEndpointNamespace,
 	}
 
 	managedSelector, err := getAcornManagedSelector()
@@ -40,9 +42,10 @@ func RegisterRoutes(router *router.Router, client kubernetes.Interface, debugIma
 	}
 
 	router.Type(&corev1.Namespace{}).Selector(projectSelector).HandlerFunc(AddAnnotations)
-	router.Type(&corev1.Namespace{}).Selector(projectSelector).HandlerFunc(h.AddAuthorizationPolicy)
 	router.Type(&corev1.Pod{}).Selector(managedSelector).Selector(jobSelector).HandlerFunc(h.KillLinkerdSidecar)
+	router.Type(&corev1.Endpoints{}).Namespace(h.ingressEndpointNamespace).Name(h.ingressEndpointName).HandlerFunc(h.ConfigureNetworkAuthorizationForIngress)
 	router.Type(&corev1.Service{}).Selector(managedSelector).HandlerFunc(AddLinkerdServer)
+	router.Type(&corev1.Namespace{}).Selector(projectSelector).HandlerFunc(h.AddAuthorizationPolicy)
 
 	return nil
 }

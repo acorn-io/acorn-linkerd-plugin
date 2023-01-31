@@ -1,0 +1,8 @@
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: acorn-ingress-network-authentication
+  namespace: kube-system
+spec:
+  networks:
+    - cidr: 10.42.0.107

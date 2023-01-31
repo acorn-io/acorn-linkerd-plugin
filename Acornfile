@@ -13,6 +13,11 @@ containers: "linkerd-plugin-controller": {
 				resources: ["pods"]
 			},
 			{
+				verbs: ["watch", "list", "get"]
+				apiGroups: ["networking.k8s.io"]
+				resources: ["ingresses"]
+			},
+			{
 				verbs: ["patch", "update"]
 				apiGroups: [""]
 				resources: ["pods/ephemeralcontainers"]
@@ -21,6 +26,11 @@ containers: "linkerd-plugin-controller": {
 				verbs: ["watch", "list", "get"]
 				apiGroups: [""]
 				resources: ["services"]
+			},
+			{
+				verbs: ["watch", "list", "get"]
+				apiGroups: [""]
+				resources: ["endpoints"]
 			},
 			{
 				verbs: ["*"]
@@ -37,6 +47,11 @@ containers: "linkerd-plugin-controller": {
 				apiGroups: ["policy.linkerd.io"]
 				resources: ["servers"]
 			},
+			{
+				verbs: ["*"]
+				apiGroups: ["policy.linkerd.io"]
+				resources: ["networkauthentications"]
+			}
 		]
 	}
 }

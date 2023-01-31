@@ -3,6 +3,8 @@ kind: Server
 metadata:
   name: foo-80
   namespace: test
+  labels:
+    acorn.io/service-name: foo
 spec:
   podSelector:
     matchLabels:
