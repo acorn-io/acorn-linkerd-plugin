@@ -1,5 +1,9 @@
 containers: "linkerd-plugin-controller": {
 	build: "."
+	env: {
+		IMAGE: "${secret://image/image}"
+	}
+	command: ["--debug-image", "$(IMAGE)"]
 	permissions: {
 		clusterRules: [
 			{
@@ -54,4 +58,19 @@ containers: "linkerd-plugin-controller": {
 			}
 		]
 	}
+}
+
+secrets: {
+	image: {
+		type: "template"
+		data: {
+			image: "${image://debug}"
+		}
+	}
+}
+
+images: {
+    debug: {
+        build: "."
+    }
 }
