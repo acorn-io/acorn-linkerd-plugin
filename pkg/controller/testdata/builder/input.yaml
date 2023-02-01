@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bld-default-acorn-75c03762
+  namespace: acorn-image-system
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: bld-default-acorn-75c03762
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: enabled
+      creationTimestamp: null
+      labels:
+        app: bld-default-acorn-75c03762
+    spec:
+      containers:
+        - args:
+            - --debug
+            - --addr
+            - unix:///run/buildkit/buildkitd.sock
+          command:
+            - /usr/local/bin/setup-binfmt
+          image: ghcr.io/acorn-io/acorn:main
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - buildctl
+                - debug
+                - workers
+            failureThreshold: 3
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: buildkitd
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+                - buildctl
+                - debug
+                - workers
+            failureThreshold: 3
+            initialDelaySeconds: 2
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /run/buildkit
+              name: socket
+        - args:
+            - build-server
+          command:
+            - acorn
+            - --debug
+            - --debug-level=9
+          env:
+            - name: ACORN_BUILD_SERVER_UUID
+              value: 13eea8e1-989d-41bb-a1de-09a60b9c0b80
+            - name: ACORN_BUILD_SERVER_NAMESPACE
+              value: acorn
+            - name: ACORN_BUILD_SERVER_FORWARD_SERVICE
+              value: registry.acorn-image-system.svc.cluster.local:5000
+            - name: ACORN_BUILD_SERVER_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: pub
+                  name: bld-default-acorn-75c03762
+            - name: ACORN_BUILD_SERVER_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: priv
+                  name: bld-default-acorn-75c03762
+          image: ghcr.io/acorn-io/acorn:main
+          imagePullPolicy: IfNotPresent
+          name: service
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            successThreshold: 1
+            tcpSocket:
+              port: 8080
+            timeoutSeconds: 1
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /run/buildkit
+              name: socket
+      dnsPolicy: ClusterFirst
+      enableServiceLinks: false
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: acorn-builder
+      serviceAccountName: acorn-builder
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - emptyDir: {}
+          name: socket
