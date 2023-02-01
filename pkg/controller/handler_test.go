@@ -89,3 +89,10 @@ func TestHandler_ConfigureNetworkAuthorizationForIngress(t *testing.T) {
 	h := Handler{}
 	tester.DefaultTest(t, scheme.Scheme, "testdata/network-authentication", h.ConfigureNetworkAuthorizationForIngress)
 }
+
+func TestHandler_ConfigureNetworkPolicyForBuildServer(t *testing.T) {
+	h := Handler{
+		ingressEndpointNamespace: "kube-system",
+	}
+	tester.DefaultTest(t, scheme.Scheme, "testdata/builder", h.ConfigureNetworkPolicyForBuildServer)
+}

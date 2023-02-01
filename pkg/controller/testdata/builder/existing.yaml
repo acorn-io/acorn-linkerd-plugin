@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bld-default-acorn-75c03762
+  namespace: acorn-image-system
+spec:
+  ports:
+    - name: buildkitd
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: bld-default-acorn-75c03762

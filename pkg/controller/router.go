@@ -2,6 +2,7 @@ package controller
 
 import (
 	"github.com/acorn-io/baaah/pkg/router"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -20,6 +21,8 @@ var (
 	appNameLabel      = "acorn.io/app-name"
 	appNamespaceLabel = "acorn.io/app-namespace"
 	jobLabel          = "acorn.io/job-name"
+
+	acornImageSystemNamespace = "acorn-image-system"
 )
 
 func RegisterRoutes(router *router.Router, client kubernetes.Interface, debugImage, clusterDomain, ingressEndpointName, ingressEndpointNamespace string) error {
@@ -46,6 +49,7 @@ func RegisterRoutes(router *router.Router, client kubernetes.Interface, debugIma
 	router.Type(&corev1.Endpoints{}).Namespace(h.ingressEndpointNamespace).Name(h.ingressEndpointName).HandlerFunc(h.ConfigureNetworkAuthorizationForIngress)
 	router.Type(&corev1.Service{}).Selector(managedSelector).HandlerFunc(AddLinkerdServer)
 	router.Type(&corev1.Namespace{}).Selector(projectSelector).HandlerFunc(h.AddAuthorizationPolicy)
+	router.Type(&appsv1.Deployment{}).Namespace(acornImageSystemNamespace).HandlerFunc(h.ConfigureNetworkPolicyForBuildServer)
 
 	return nil
 }

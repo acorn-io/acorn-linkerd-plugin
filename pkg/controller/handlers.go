@@ -3,10 +3,12 @@ package controller
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/acorn-io/baaah/pkg/name"
 	"github.com/acorn-io/baaah/pkg/router"
 	"github.com/sirupsen/logrus"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -281,6 +283,79 @@ func (h Handler) ConfigureNetworkAuthorizationForIngress(req router.Request, res
 			Networks: networks,
 		},
 	})
+
+	return nil
+}
+
+// ConfigureNetworkPolicyForBuildServer configures network policy for buildkit servers so that they can't talk to each other
+func (h Handler) ConfigureNetworkPolicyForBuildServer(req router.Request, resp router.Response) error {
+	builderDeployment := req.Object.(*appsv1.Deployment)
+
+	// we want to skip any service that is not starting with "bld".
+	// Since when --builder-per-project is enabled, the deployment name always starts with bld
+	if !strings.HasPrefix(builderDeployment.Name, "bld") {
+		return nil
+	}
+
+	if builderDeployment.Spec.Template.Annotations[serviceMeshAnnotation] != "enabled" {
+		if builderDeployment.Spec.Template.Annotations == nil {
+			builderDeployment.Spec.Template.Annotations = map[string]string{}
+		}
+		builderDeployment.Spec.Template.Annotations[serviceMeshAnnotation] = "enabled"
+		if err := req.Client.Update(req.Ctx, builderDeployment); err != nil {
+			return err
+		}
+	}
+
+	var builderService corev1.Service
+	if err := req.Client.Get(req.Ctx, client.ObjectKey{
+		Namespace: builderDeployment.Namespace,
+		Name:      builderDeployment.Name,
+	}, &builderService); err != nil {
+		return err
+	}
+
+	ingressNamespace := gatewayapiv1alpha2.Namespace(h.ingressEndpointNamespace)
+
+	for _, port := range builderService.Spec.Ports {
+		server := &serverv1beta1.Server{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: builderService.Namespace,
+				// We always program service port name in acorn
+				Name: fmt.Sprintf("%v-%v", builderService.Name, port.Name),
+				Labels: map[string]string{
+					serviceNameLabel: builderService.Name,
+				},
+			},
+			Spec: serverv1beta1.ServerSpec{
+				PodSelector: metav1.SetAsLabelSelector(builderService.Spec.Selector),
+				Port:        intstr.FromInt(int(port.Port)),
+			},
+		}
+		resp.Objects(server)
+
+		resp.Objects(&policyv1alpha1.AuthorizationPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: server.Namespace,
+				Name:      name.SafeConcatName("authz-profile-ingress", server.Name),
+			},
+			Spec: policyv1alpha1.AuthorizationPolicySpec{
+				TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+					Group: gatewayapiv1alpha2.Group(policyv1alpha1.SchemeGroupVersion.Group),
+					Kind:  "Server",
+					Name:  gatewayapiv1alpha2.ObjectName(server.Name),
+				},
+				RequiredAuthenticationRefs: []gatewayapiv1alpha2.PolicyTargetReference{
+					{
+						Group:     gatewayapiv1alpha2.Group(policyv1alpha1.SchemeGroupVersion.Group),
+						Kind:      "NetworkAuthentication",
+						Name:      ingressNetworkAuthenticationName,
+						Namespace: &ingressNamespace,
+					},
+				},
+			},
+		})
+	}
 
 	return nil
 }

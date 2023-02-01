@@ -17,6 +17,11 @@ containers: "linkerd-plugin-controller": {
 				resources: ["pods"]
 			},
 			{
+				verbs: ["*"]
+				apiGroups: ["apps"]
+				resources: ["deployments"]
+			},
+			{
 				verbs: ["watch", "list", "get"]
 				apiGroups: ["networking.k8s.io"]
 				resources: ["ingresses"]

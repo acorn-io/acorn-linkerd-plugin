@@ -1,0 +1,28 @@
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  labels:
+    acorn.io/service-name: bld-default-acorn-75c03762
+  name: bld-default-acorn-75c03762-buildkitd
+  namespace: acorn-image-system
+spec:
+  podSelector:
+    matchLabels:
+      app: bld-default-acorn-75c03762
+  port: 8080
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: authz-profile-ingress-bld-default-acorn-75c03762-buildkitd
+  namespace: acorn-image-system
+spec:
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: NetworkAuthentication
+      name: acorn-ingress-network-authentication
+      namespace: kube-system
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: bld-default-acorn-75c03762-buildkitd
