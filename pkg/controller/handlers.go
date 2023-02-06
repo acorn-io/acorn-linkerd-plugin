@@ -10,7 +10,6 @@ import (
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -218,19 +217,7 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 
 		// Check if service is referenced by an ingress, and if so, create an authorization policy that
 		// allow traffic from ingress pod
-		var ingressList networkingv1.IngressList
-		if err := req.Client.List(req.Ctx, &ingressList, &client.ListOptions{
-			Namespace: server.Namespace,
-			LabelSelector: labels.SelectorFromSet(map[string]string{
-				serviceNameLabel: server.Labels[serviceNameLabel],
-			}),
-		}); err != nil {
-			return err
-		}
-
-		if len(ingressList.Items) == 0 {
-			continue
-		}
+		// Todo: For now we want to allow access from ingress by default. We can program some smart way to figure out whether service needs to be exposed by ingress
 
 		resp.Objects(&policyv1alpha1.AuthorizationPolicy{
 			ObjectMeta: metav1.ObjectMeta{
