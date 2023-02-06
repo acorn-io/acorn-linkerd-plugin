@@ -65,7 +65,8 @@ func TestHandler_AddLinkerdServer(t *testing.T) {
 
 func TestHandler_AddAuthorizationPolicy(t *testing.T) {
 	h := Handler{
-		clusterDomain: "cluster.local",
+		clusterDomain:            "cluster.local",
+		ingressEndpointNamespace: "kube-system",
 	}
 	tester.DefaultTest(t, scheme.Scheme, "testdata/authorization-policy", h.AddAuthorizationPolicy)
 }
