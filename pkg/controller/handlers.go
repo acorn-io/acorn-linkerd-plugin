@@ -27,6 +27,8 @@ const (
 
 	ingressNetworkAuthenticationName = "acorn-ingress-network-authentication"
 	serviceNameLabel                 = "acorn.io/service-name"
+
+	acornSystemNamespace = "acorn-system"
 )
 
 type Handler struct {
@@ -161,6 +163,21 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 	})
 	for _, appNamespace := range appNamespaces.Items {
 		serviceaccountsIdentities = append(serviceaccountsIdentities, fmt.Sprintf("*.%s.serviceaccount.identity.linkerd.%v", appNamespace.Name, h.clusterDomain))
+	}
+
+	// Then we list all the deployment created in acorn-system for this project and allow access from these services. These are created by routers
+	var deployments appsv1.DeploymentList
+	if err := req.Client.List(req.Ctx, &deployments, &client.ListOptions{
+		Namespace: acornSystemNamespace,
+		LabelSelector: labels.SelectorFromSet(map[string]string{
+			"acorn.io/app-namespace": projectNamespace.Name,
+		}),
+	}); err != nil {
+		return err
+	}
+
+	for _, dp := range deployments.Items {
+		serviceaccountsIdentities = append(serviceaccountsIdentities, fmt.Sprintf("%s.%s.serviceaccount.identity.linkerd.%v", dp.Spec.Template.Spec.ServiceAccountName, dp.Namespace, h.clusterDomain))
 	}
 
 	if len(serviceaccountsIdentities) == 0 {
