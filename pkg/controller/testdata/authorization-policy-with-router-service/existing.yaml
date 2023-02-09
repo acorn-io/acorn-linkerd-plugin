@@ -67,3 +67,15 @@ spec:
       acorn.io/app-namespace: acorn
       acorn.io/managed: "true"
   port: 80
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: router-pod
+  namespace: acorn-system
+  labels:
+    acorn.io/app-name: bitter-smoke
+    acorn.io/app-namespace: acorn
+    acorn.io/managed: "true"
+status:
+  podIp: "10.0.4.5"
