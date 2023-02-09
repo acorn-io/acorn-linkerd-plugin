@@ -26,6 +26,7 @@ const (
 	proxySidecarContainerName = "linkerd-proxy"
 
 	ingressNetworkAuthenticationName = "acorn-ingress-network-authentication"
+	routerNetworkAuthenticationName  = "acorn-router-network-authentication"
 	serviceNameLabel                 = "acorn.io/service-name"
 
 	acornSystemNamespace = "acorn-system"
@@ -167,26 +168,6 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 		serviceaccountsIdentities = append(serviceaccountsIdentities, fmt.Sprintf("*.%s.serviceaccount.identity.linkerd.%v", appNamespace.Name, h.clusterDomain))
 	}
 
-	// Then we list all the deployment created in acorn-system for this project and allow access from these services. These are created by routers
-	var deployments appsv1.DeploymentList
-	if err := req.Client.List(req.Ctx, &deployments, &client.ListOptions{
-		Namespace: acornSystemNamespace,
-		LabelSelector: labels.SelectorFromSet(map[string]string{
-			"acorn.io/app-namespace": projectNamespace.Name,
-		}),
-	}); err != nil {
-		return err
-	}
-
-	for _, dp := range deployments.Items {
-		saName := dp.Spec.Template.Spec.ServiceAccountName
-		// we shouldn't be using default service account as these router deployment should get dedicated sa
-		if saName == "" {
-			saName = "default"
-		}
-		serviceaccountsIdentities = append(serviceaccountsIdentities, fmt.Sprintf("%s.%s.serviceaccount.identity.linkerd.%v", saName, dp.Namespace, h.clusterDomain))
-	}
-
 	if len(serviceaccountsIdentities) == 0 {
 		return nil
 	}
@@ -214,7 +195,8 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 		servers.Items = append(servers.Items, result.Items...)
 	}
 
-	// list all server in acorn-system that is exposed through router
+	// list all server in acorn-system that is exposed through router, configure network access for routers
+	// TODO: since router is based on klipper-lb and iptable forwarding, it bypasses linkerd-proxy. For now we hard-coded pod ip in allow list
 	var result serverv1beta1.ServerList
 	if err := req.Client.List(req.Ctx, &result, &client.ListOptions{
 		Namespace: acornSystemNamespace,
@@ -225,6 +207,33 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 		return err
 	}
 	servers.Items = append(servers.Items, result.Items...)
+	var networks []*policyv1alpha1.Network
+	for _, server := range result.Items {
+		var pods corev1.PodList
+		if err := req.Client.List(req.Ctx, &pods, &client.ListOptions{
+			Namespace:     acornSystemNamespace,
+			LabelSelector: labels.SelectorFromSet(server.Spec.PodSelector.MatchLabels),
+		}); err != nil {
+			return err
+		}
+		for _, pod := range pods.Items {
+			networks = append(networks, &policyv1alpha1.Network{
+				Cidr: pod.Status.PodIP,
+			})
+		}
+	}
+
+	if len(networks) > 0 {
+		resp.Objects(&policyv1alpha1.NetworkAuthentication{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: projectNamespace.Name,
+				Name:      name.SafeConcatName(routerNetworkAuthenticationName, projectNamespace.Name),
+			},
+			Spec: policyv1alpha1.NetworkAuthenticationSpec{
+				Networks: networks,
+			},
+		})
+	}
 
 	project := gatewayapiv1alpha2.Namespace(projectNamespace.Name)
 	ingressNamespace := gatewayapiv1alpha2.Namespace(h.ingressEndpointNamespace)
@@ -277,6 +286,52 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 				},
 			},
 		})
+
+		resp.Objects(&policyv1alpha1.AuthorizationPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: server.Namespace,
+				Name:      name.SafeConcatName("authz-profile-ingress", server.Name),
+			},
+			Spec: policyv1alpha1.AuthorizationPolicySpec{
+				TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+					Group: gatewayapiv1alpha2.Group(policyv1alpha1.SchemeGroupVersion.Group),
+					Kind:  "Server",
+					Name:  gatewayapiv1alpha2.ObjectName(server.Name),
+				},
+				RequiredAuthenticationRefs: []gatewayapiv1alpha2.PolicyTargetReference{
+					{
+						Group:     gatewayapiv1alpha2.Group(policyv1alpha1.SchemeGroupVersion.Group),
+						Kind:      "NetworkAuthentication",
+						Name:      ingressNetworkAuthenticationName,
+						Namespace: &ingressNamespace,
+					},
+				},
+			},
+		})
+
+		if len(networks) > 0 {
+			resp.Objects(&policyv1alpha1.AuthorizationPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: server.Namespace,
+					Name:      name.SafeConcatName("authz-profile-router", server.Name),
+				},
+				Spec: policyv1alpha1.AuthorizationPolicySpec{
+					TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+						Group: gatewayapiv1alpha2.Group(policyv1alpha1.SchemeGroupVersion.Group),
+						Kind:  "Server",
+						Name:  gatewayapiv1alpha2.ObjectName(server.Name),
+					},
+					RequiredAuthenticationRefs: []gatewayapiv1alpha2.PolicyTargetReference{
+						{
+							Group:     gatewayapiv1alpha2.Group(policyv1alpha1.SchemeGroupVersion.Group),
+							Kind:      "NetworkAuthentication",
+							Name:      gatewayapiv1alpha2.ObjectName(name.SafeConcatName(routerNetworkAuthenticationName, projectNamespace.Name)),
+							Namespace: &project,
+						},
+					},
+				},
+			})
+		}
 	}
 
 	return nil
