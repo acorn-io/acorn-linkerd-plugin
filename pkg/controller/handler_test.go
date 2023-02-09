@@ -105,3 +105,11 @@ func TestHandler_AddAuthorizationPolicy_Deployment(t *testing.T) {
 	}
 	tester.DefaultTest(t, scheme.Scheme, "testdata/authorization-policy-with-deployment", h.AddAuthorizationPolicy)
 }
+
+func TestHandler_AddAuthorizationPolicy_Router(t *testing.T) {
+	h := Handler{
+		clusterDomain:            "cluster.local",
+		ingressEndpointNamespace: "kube-system",
+	}
+	tester.DefaultTest(t, scheme.Scheme, "testdata/authorization-policy-with-router-service", h.AddAuthorizationPolicy)
+}

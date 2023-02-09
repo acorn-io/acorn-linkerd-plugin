@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: foo
   namespace: test
+  labels:
+    acorn.io/app-name: "foo"
+    acorn.io/app-namespace: "foo"
 spec:
   ports:
     - appProtocol: HTTP
