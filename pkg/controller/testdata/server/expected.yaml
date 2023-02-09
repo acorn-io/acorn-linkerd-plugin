@@ -5,6 +5,8 @@ metadata:
   namespace: test
   labels:
     acorn.io/service-name: foo
+    acorn.io/app-name: foo
+    acorn.io/app-namespace: foo
 spec:
   podSelector:
     matchLabels:

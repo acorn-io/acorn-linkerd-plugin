@@ -127,7 +127,9 @@ func AddLinkerdServer(req router.Request, resp router.Response) error {
 				// We always program service port name in acorn
 				Name: fmt.Sprintf("%v-%v", service.Name, port.Name),
 				Labels: map[string]string{
-					serviceNameLabel: service.Name,
+					serviceNameLabel:  service.Name,
+					appNamespaceLabel: service.Labels[appNamespaceLabel],
+					appNameLabel:      service.Labels[appNameLabel],
 				},
 			},
 			Spec: serverv1beta1.ServerSpec{
@@ -211,6 +213,19 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 		}
 		servers.Items = append(servers.Items, result.Items...)
 	}
+
+	// list all server in acorn-system that is exposed through router
+	var result serverv1beta1.ServerList
+	if err := req.Client.List(req.Ctx, &result, &client.ListOptions{
+		Namespace: acornSystemNamespace,
+		LabelSelector: labels.SelectorFromSet(map[string]string{
+			"acorn.io/app-namespace": projectNamespace.Name,
+		}),
+	}); err != nil {
+		return err
+	}
+	servers.Items = append(servers.Items, result.Items...)
+
 	project := gatewayapiv1alpha2.Namespace(projectNamespace.Name)
 	ingressNamespace := gatewayapiv1alpha2.Namespace(h.ingressEndpointNamespace)
 
