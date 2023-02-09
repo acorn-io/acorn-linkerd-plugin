@@ -177,7 +177,12 @@ func (h Handler) AddAuthorizationPolicy(req router.Request, resp router.Response
 	}
 
 	for _, dp := range deployments.Items {
-		serviceaccountsIdentities = append(serviceaccountsIdentities, fmt.Sprintf("%s.%s.serviceaccount.identity.linkerd.%v", dp.Spec.Template.Spec.ServiceAccountName, dp.Namespace, h.clusterDomain))
+		saName := dp.Spec.Template.Spec.ServiceAccountName
+		// we shouldn't be using default service account as these router deployment should get dedicated sa
+		if saName == "" {
+			saName = "default"
+		}
+		serviceaccountsIdentities = append(serviceaccountsIdentities, fmt.Sprintf("%s.%s.serviceaccount.identity.linkerd.%v", saName, dp.Namespace, h.clusterDomain))
 	}
 
 	if len(serviceaccountsIdentities) == 0 {
