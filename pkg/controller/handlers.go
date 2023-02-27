@@ -23,6 +23,7 @@ import (
 
 const (
 	serviceMeshAnnotation     = "linkerd.io/inject"
+	defaultPolicyAnnotation   = "config.linkerd.io/default-inbound-policy"
 	proxySidecarContainerName = "linkerd-proxy"
 
 	ingressNetworkAuthenticationName = "acorn-ingress-network-authentication"
@@ -52,8 +53,9 @@ func AddAnnotations(req router.Request, resp router.Response) error {
 		return nil
 	}
 
-	logrus.Infof("Updating project %v to inject linkerd service mesh annotation", projectNamespace.Name)
+	logrus.Infof("Updating project %v to inject linkerd service mesh annotations", projectNamespace.Name)
 	projectNamespace.Annotations[serviceMeshAnnotation] = "enabled"
+	projectNamespace.Annotations[defaultPolicyAnnotation] = "deny"
 	if err := req.Client.Update(req.Ctx, projectNamespace); err != nil {
 		return err
 	}

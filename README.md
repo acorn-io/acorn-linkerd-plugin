@@ -8,6 +8,14 @@ Acorn linkerd plugin provides a way for acorn to integrate with linkerd service 
 
 3. Automatically configure linkerd policies to ensure project level networking isolation between acorn projects.
 
+When installing Acorn in your local cluster, if you want to be able to use this plugin, be sure to include these command line options:
+
+```bash
+acorn install --propagate-project-annotation "linkerd.io/inject","config.linkerd.io/default-inbound-policy" --set-pod-security-enforce-profile=false
+```
+
+> Note: if you are using the Cilium CNI, you do not need the `--set-pod-security-enforce-profile=false` option.
+
 ### Build
 
 ```bash
@@ -19,7 +27,7 @@ make build
 The best way to run the plugin is through acorn. Run 
 
 ```bash
-acorn run --name controller -i .
+acorn run --name acorn-linkerd-plugin -i .
 ```
 
 ### Production
